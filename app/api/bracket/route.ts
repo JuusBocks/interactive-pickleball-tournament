@@ -24,6 +24,23 @@ const requestSchema = z.discriminatedUnion("type", [
     names: z.array(z.string()).min(2).max(64),
   }),
   z.object({
+    type: z.literal("addPlayer"),
+    name: z.string().min(1).max(80),
+  }),
+  z.object({
+    type: z.literal("removePlayer"),
+    playerId: z.string(),
+  }),
+  z.object({
+    type: z.literal("shufflePlayers"),
+  }),
+  z.object({
+    type: z.literal("startTournament"),
+  }),
+  z.object({
+    type: z.literal("unlockSetup"),
+  }),
+  z.object({
     type: z.literal("setTitle"),
     title: z.string().min(1).max(80),
   }),
@@ -41,6 +58,23 @@ function routeError(error: unknown) {
     return "The live bracket database is not ready yet. Deploy the site so its D1 migration can run.";
   }
   return message;
+}
+
+function normalizePayload(payload: BracketPayload): BracketPayload {
+  return {
+    players: payload.players ?? [],
+    picks: payload.picks ?? {},
+    locked: Boolean(payload.locked),
+  };
+}
+
+function shufflePlayers(players: BracketPayload["players"]) {
+  const shuffled = [...players];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
 }
 
 async function readRow() {
@@ -70,7 +104,7 @@ async function readRow() {
 }
 
 function serialize(row: Awaited<ReturnType<typeof readRow>>) {
-  const payload = JSON.parse(row.payload) as BracketPayload;
+  const payload = normalizePayload(JSON.parse(row.payload) as BracketPayload);
   return {
     id: row.id,
     title: row.title,
@@ -94,11 +128,17 @@ export async function POST(request: Request) {
   try {
     const action = requestSchema.parse(await request.json());
     const row = await readRow();
-    const currentPayload = JSON.parse(row.payload) as BracketPayload;
+    const currentPayload = normalizePayload(JSON.parse(row.payload) as BracketPayload);
     let title = row.title;
     let payload = currentPayload;
 
     if (action.type === "setWinner") {
+      if (!payload.locked) {
+        return Response.json(
+          { error: "Start the tournament before picking winners." },
+          { status: 400 }
+        );
+      }
       const picks = { ...payload.picks };
       if (action.winnerId) {
         picks[action.matchId] = action.winnerId;
@@ -112,6 +152,60 @@ export async function POST(request: Request) {
       payload = {
         players: namesToPlayers(action.names),
         picks: {},
+        locked: false,
+      };
+    }
+
+    if (action.type === "addPlayer") {
+      if (payload.players.length >= 64) {
+        return Response.json({ error: "Roster limit is 64 players." }, { status: 400 });
+      }
+      payload = {
+        players: namesToPlayers([
+          ...payload.players.map((player) => player.name),
+          action.name,
+        ]),
+        picks: {},
+        locked: false,
+      };
+    }
+
+    if (action.type === "removePlayer") {
+      const remaining = payload.players.filter((player) => player.id !== action.playerId);
+      if (remaining.length < 2) {
+        return Response.json(
+          { error: "Keep at least two players in the roster." },
+          { status: 400 }
+        );
+      }
+      payload = {
+        players: remaining,
+        picks: {},
+        locked: false,
+      };
+    }
+
+    if (action.type === "shufflePlayers") {
+      payload = {
+        players: shufflePlayers(payload.players),
+        picks: {},
+        locked: false,
+      };
+    }
+
+    if (action.type === "startTournament") {
+      payload = {
+        ...payload,
+        picks: {},
+        locked: true,
+      };
+    }
+
+    if (action.type === "unlockSetup") {
+      payload = {
+        ...payload,
+        picks: {},
+        locked: false,
       };
     }
 
@@ -145,4 +239,3 @@ export async function POST(request: Request) {
     return Response.json({ error: routeError(error) }, { status });
   }
 }
-

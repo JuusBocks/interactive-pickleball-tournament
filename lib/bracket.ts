@@ -28,6 +28,7 @@ export type BracketMatch = {
 export type BracketPayload = {
   players: Player[];
   picks: Record<string, string>;
+  locked?: boolean;
 };
 
 export type BracketView = {
@@ -83,6 +84,7 @@ export function defaultPayload(): BracketPayload {
   return {
     players: namesToPlayers(DEFAULT_NAMES),
     picks: {},
+    locked: false,
   };
 }
 
@@ -218,7 +220,11 @@ export function buildBracket(payload: BracketPayload): BracketView {
 }
 
 export function pruneInvalidPicks(payload: BracketPayload) {
-  const next = { players: payload.players, picks: { ...payload.picks } };
+  const next = {
+    players: payload.players,
+    picks: { ...payload.picks },
+    locked: payload.locked,
+  };
   let changed = true;
 
   while (changed) {

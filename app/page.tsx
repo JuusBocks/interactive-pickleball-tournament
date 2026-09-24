@@ -4,11 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Copy,
+  Lock,
   ListRestart,
+  Plus,
   RefreshCcw,
   RotateCcw,
+  Shuffle,
   Trophy,
+  Unlock,
   Users,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +28,7 @@ type BracketResponse = {
   payload: {
     players: Array<{ id: string; name: string }>;
     picks: Record<string, string>;
+    locked?: boolean;
   };
   view: BracketView;
   error?: string;
@@ -31,6 +37,11 @@ type BracketResponse = {
 type SaveAction =
   | { type: "setWinner"; matchId: string; winnerId: string | null }
   | { type: "setRoster"; names: string[] }
+  | { type: "addPlayer"; name: string }
+  | { type: "removePlayer"; playerId: string }
+  | { type: "shufflePlayers" }
+  | { type: "startTournament" }
+  | { type: "unlockSetup" }
   | { type: "setTitle"; title: string }
   | { type: "resetResults" }
   | { type: "restoreDefault" };
@@ -52,6 +63,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [newPlayer, setNewPlayer] = useState("");
   const mounted = useRef(true);
 
   const load = useCallback(async (quiet = false) => {
@@ -211,6 +223,7 @@ export default function Home() {
   const lastUpdated = data?.updatedAt
     ? DATE_FORMATTER.format(new Date(`${data.updatedAt.replace(" ", "T")}Z`))
     : "";
+  const tournamentLocked = Boolean(data?.payload.locked);
 
   async function copyLink() {
     await navigator.clipboard.writeText(window.location.href);
@@ -226,6 +239,13 @@ export default function Home() {
     void save({ type: "setRoster", names });
   }
 
+  function addPlayer() {
+    const name = newPlayer.trim();
+    if (!name) return;
+    setNewPlayer("");
+    void save({ type: "addPlayer", name });
+  }
+
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#f7f8f2_0%,#edf3eb_100%)] pb-[env(safe-area-inset-bottom)] text-foreground">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 lg:px-8">
@@ -234,6 +254,9 @@ export default function Home() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-md bg-[#db7c26] text-white hover:bg-[#db7c26]">
                 Live
+              </Badge>
+              <Badge variant={tournamentLocked ? "default" : "outline"} className="rounded-md">
+                {tournamentLocked ? "Started" : "Setup"}
               </Badge>
               <Badge variant="outline" className="rounded-md bg-white/70">
                 Revision {data?.revision ?? "-"}
@@ -275,6 +298,7 @@ export default function Home() {
             <Button
               variant="secondary"
               onClick={() => void save({ type: "resetResults" })}
+              disabled={!tournamentLocked}
               className="min-h-11 px-2 text-xs sm:min-h-9 sm:px-4 sm:text-sm"
             >
               <RotateCcw />
@@ -293,32 +317,85 @@ export default function Home() {
           <aside className="order-2 space-y-4 rounded-md border border-border bg-card p-3 shadow-sm sm:p-4 xl:order-1">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold">Players</h2>
+                <h2 className="text-lg font-semibold">Setup</h2>
                 <p className="text-sm text-muted-foreground">
-                  One name per line. Saving a new roster starts a fresh bracket.
+                  Add players, shuffle the bracket order, then start the tournament.
                 </p>
               </div>
               <Users className="size-5 text-primary" />
             </div>
+
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <Input
+                value={newPlayer}
+                onChange={(event) => setNewPlayer(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") addPlayer();
+                }}
+                disabled={tournamentLocked || saving}
+                placeholder="Add player"
+                className="min-h-11 bg-white/70 dark:bg-black/10"
+                aria-label="Add player"
+              />
+              <Button
+                type="button"
+                onClick={addPlayer}
+                disabled={tournamentLocked || saving || !newPlayer.trim()}
+                className="min-h-11 px-3"
+                aria-label="Add player"
+              >
+                <Plus />
+                Add
+              </Button>
+            </div>
+
             <Textarea
               value={roster}
               onChange={(event) => setRoster(event.target.value)}
+              disabled={tournamentLocked}
               className="min-h-[190px] resize-y bg-white/70 leading-6 dark:bg-black/10 sm:min-h-[250px]"
               aria-label="Player roster"
             />
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={saveRoster} disabled={saving} className="min-h-11">
+              <Button
+                onClick={saveRoster}
+                disabled={tournamentLocked || saving}
+                className="min-h-11"
+              >
                 <Check />
-                Save roster
+                Save list
               </Button>
               <Button
                 variant="outline"
+                onClick={() => void save({ type: "shufflePlayers" })}
+                disabled={tournamentLocked || saving}
+                className="min-h-11"
+              >
+                <Shuffle />
+                Shuffle
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                variant="outline"
                 onClick={() => void save({ type: "restoreDefault" })}
-                disabled={saving}
+                disabled={tournamentLocked || saving}
                 className="min-h-11"
               >
                 <ListRestart />
                 Restore
+              </Button>
+              <Button
+                onClick={() =>
+                  void save({
+                    type: tournamentLocked ? "unlockSetup" : "startTournament",
+                  })
+                }
+                disabled={saving || (data?.payload.players.length ?? 0) < 2}
+                className="min-h-11"
+              >
+                {tournamentLocked ? <Unlock /> : <Lock />}
+                {tournamentLocked ? "Edit setup" : "Start"}
               </Button>
             </div>
 
@@ -333,12 +410,26 @@ export default function Home() {
                 {data?.view.players.map((player) => (
                   <div
                     key={player.id}
-                    className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2"
+                    className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md border border-border bg-background/70 px-3 py-2"
                   >
                     <span className="truncate text-sm font-medium">{player.name}</span>
                     <span className="text-xs tabular-nums text-muted-foreground">
                       {player.wins}-{player.losses}
                     </span>
+                    {!tournamentLocked ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() =>
+                          void save({ type: "removePlayer", playerId: player.id })
+                        }
+                        disabled={saving || (data?.payload.players.length ?? 0) <= 2}
+                        aria-label={`Remove ${player.name}`}
+                      >
+                        <X />
+                      </Button>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -350,7 +441,9 @@ export default function Home() {
               <div>
                 <h2 className="text-lg font-semibold">Bracket</h2>
                 <p className="text-sm text-muted-foreground">
-                  Tap a player to advance them. Open screens update automatically.
+                  {tournamentLocked
+                    ? "Tap a player to advance them. Open screens update automatically."
+                    : "Shuffle and start the tournament to enable match picks."}
                 </p>
               </div>
               <div className="flex min-h-11 items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
@@ -366,6 +459,12 @@ export default function Home() {
                 {loading && !data ? (
                   <div className="col-span-full rounded-md border border-border bg-muted p-6 text-sm text-muted-foreground">
                     Loading live bracket...
+                  </div>
+                ) : null}
+
+                {!tournamentLocked && data ? (
+                  <div className="rounded-md border border-dashed border-[#0f6b4f]/40 bg-accent/60 p-4 text-sm text-accent-foreground md:col-span-full">
+                    Setup is unlocked. Add everyone, use Shuffle to randomize the matchups, then tap Start.
                   </div>
                 ) : null}
 
@@ -389,7 +488,8 @@ export default function Home() {
                             <div className="space-y-2">
                               {players.map((player, index) => {
                                 const selected = player?.id === match.winner?.id;
-                                const disabled = !player || match.locked || saving;
+                                const disabled =
+                                  !tournamentLocked || !player || match.locked || saving;
                                 return (
                                   <Button
                                     key={`${match.id}-${index}`}
