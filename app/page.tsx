@@ -227,10 +227,10 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#f7f8f2_0%,#edf3eb_100%)] text-foreground">
-      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5 px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0 space-y-3">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f7f8f2_0%,#edf3eb_100%)] pb-[env(safe-area-inset-bottom)] text-foreground">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-3 px-3 py-3 sm:gap-5 sm:px-6 sm:py-4 lg:px-8">
+        <header className="flex flex-col gap-3 border-b border-border pb-3 sm:gap-4 sm:pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="min-w-0 space-y-2 sm:space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className="rounded-md bg-[#db7c26] text-white hover:bg-[#db7c26]">
                 Live
@@ -250,20 +250,33 @@ export default function Home() {
                   void save({ type: "setTitle", title: title.trim() });
                 }
               }}
-              className="h-auto border-0 bg-transparent px-0 text-3xl font-semibold shadow-none focus-visible:ring-0 sm:text-4xl"
+              className="h-auto border-0 bg-transparent px-0 text-2xl font-semibold leading-tight shadow-none focus-visible:ring-0 sm:text-4xl"
               aria-label="Bracket title"
             />
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+          <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+            <Button
+              variant="outline"
+              onClick={() => void load()}
+              disabled={loading}
+              className="min-h-11 px-2 text-xs sm:min-h-9 sm:px-4 sm:text-sm"
+            >
               <RefreshCcw />
               Refresh
             </Button>
-            <Button variant="outline" onClick={() => void copyLink()}>
+            <Button
+              variant="outline"
+              onClick={() => void copyLink()}
+              className="min-h-11 px-2 text-xs sm:min-h-9 sm:px-4 sm:text-sm"
+            >
               {copied ? <Check /> : <Copy />}
               {copied ? "Copied" : "Copy link"}
             </Button>
-            <Button variant="secondary" onClick={() => void save({ type: "resetResults" })}>
+            <Button
+              variant="secondary"
+              onClick={() => void save({ type: "resetResults" })}
+              className="min-h-11 px-2 text-xs sm:min-h-9 sm:px-4 sm:text-sm"
+            >
               <RotateCcw />
               Clear picks
             </Button>
@@ -276,8 +289,8 @@ export default function Home() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <aside className="space-y-4 rounded-md border border-border bg-card p-4 shadow-sm">
+        <section className="grid gap-3 sm:gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="order-2 space-y-4 rounded-md border border-border bg-card p-3 shadow-sm sm:p-4 xl:order-1">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">Players</h2>
@@ -290,11 +303,11 @@ export default function Home() {
             <Textarea
               value={roster}
               onChange={(event) => setRoster(event.target.value)}
-              className="min-h-[250px] resize-y bg-white/70 leading-6 dark:bg-black/10"
+              className="min-h-[190px] resize-y bg-white/70 leading-6 dark:bg-black/10 sm:min-h-[250px]"
               aria-label="Player roster"
             />
             <div className="grid grid-cols-2 gap-2">
-              <Button onClick={saveRoster} disabled={saving}>
+              <Button onClick={saveRoster} disabled={saving} className="min-h-11">
                 <Check />
                 Save roster
               </Button>
@@ -302,6 +315,7 @@ export default function Home() {
                 variant="outline"
                 onClick={() => void save({ type: "restoreDefault" })}
                 disabled={saving}
+                className="min-h-11"
               >
                 <ListRestart />
                 Restore
@@ -315,11 +329,11 @@ export default function Home() {
                   {data?.view.players.length ?? 0} players
                 </span>
               </div>
-              <div className="max-h-[340px] space-y-2 overflow-auto pr-1">
+              <div className="max-h-[260px] space-y-2 overflow-auto pr-1 sm:max-h-[340px]">
                 {data?.view.players.map((player) => (
                   <div
                     key={player.id}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2"
+                    className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-border bg-background/70 px-3 py-2"
                   >
                     <span className="truncate text-sm font-medium">{player.name}</span>
                     <span className="text-xs tabular-nums text-muted-foreground">
@@ -331,15 +345,15 @@ export default function Home() {
             </div>
           </aside>
 
-          <section className="min-w-0 overflow-hidden rounded-md border border-border bg-card shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+          <section className="order-1 min-w-0 overflow-hidden rounded-md border border-border bg-card shadow-sm xl:order-2">
+            <div className="flex flex-col gap-3 border-b border-border p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
               <div>
                 <h2 className="text-lg font-semibold">Bracket</h2>
                 <p className="text-sm text-muted-foreground">
-                  Tap a player in each match to advance them. Open screens update automatically.
+                  Tap a player to advance them. Open screens update automatically.
                 </p>
               </div>
-              <div className="flex items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
+              <div className="flex min-h-11 items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
                 <Trophy className="size-4" />
                 <span className="truncate">
                   {data?.view.champion ? data.view.champion.name : "Champion pending"}
@@ -347,8 +361,8 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <div className="grid min-w-[980px] auto-cols-[minmax(220px,1fr)] grid-flow-col gap-4 p-4">
+            <div className="overflow-visible md:overflow-x-auto">
+              <div className="flex flex-col gap-3 p-3 md:grid md:min-w-[980px] md:auto-cols-[minmax(220px,1fr)] md:grid-flow-col md:gap-4 md:p-4">
                 {loading && !data ? (
                   <div className="col-span-full rounded-md border border-border bg-muted p-6 text-sm text-muted-foreground">
                     Loading live bracket...
@@ -356,11 +370,11 @@ export default function Home() {
                 ) : null}
 
                 {rounds.map((round) => (
-                  <div key={round.name} className="flex min-w-[220px] flex-col gap-3">
+                  <div key={round.name} className="flex min-w-0 flex-col gap-3 md:min-w-[220px]">
                     <div className="sticky top-0 z-10 rounded-md bg-[#0f6b4f] px-3 py-2 text-sm font-semibold text-white shadow-sm">
                       {round.name}
                     </div>
-                    <div className="flex flex-1 flex-col justify-around gap-4">
+                    <div className="flex flex-1 flex-col gap-3 md:justify-around md:gap-4">
                       {round.matches.map((match) => {
                         const players = [match.playerA, match.playerB];
                         return (
@@ -368,7 +382,7 @@ export default function Home() {
                             key={match.id}
                             className="rounded-md border border-border bg-background p-3 shadow-sm"
                           >
-                            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                            <div className="mb-2 flex items-center justify-between gap-2 text-sm text-muted-foreground md:text-xs">
                               <span>Match {match.index}</span>
                               {match.autoAdvanced ? <span>Bye</span> : null}
                             </div>
@@ -390,9 +404,9 @@ export default function Home() {
                                         winnerId: selected ? null : player.id,
                                       })
                                     }
-                                    className="h-auto min-h-11 w-full justify-between whitespace-normal px-3 py-2 text-left"
+                                    className="h-auto min-h-14 w-full justify-between whitespace-normal px-3 py-3 text-left text-base md:min-h-11 md:py-2 md:text-sm"
                                   >
-                                    <span className="min-w-0 truncate">
+                                    <span className="min-w-0 overflow-hidden text-ellipsis">
                                       {playerLabel(player?.name)}
                                     </span>
                                     {selected ? <Check className="size-4" /> : null}
