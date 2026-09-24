@@ -569,7 +569,9 @@ export default function Home() {
                             </div>
                             <div className="space-y-2">
                               {players.map((player, index) => {
-                                const selected = player?.id === match.winner?.id;
+                                const selected = Boolean(
+                                  player && match.winner && player.id === match.winner.id
+                                );
                                 const disabled =
                                   !tournamentLocked || !player || match.locked || saving;
                                 return (
@@ -591,7 +593,13 @@ export default function Home() {
                                     <span className="min-w-0 overflow-hidden text-ellipsis">
                                       {playerLabel(player?.name)}
                                     </span>
-                                    {selected ? <Check className="size-4" /> : null}
+                                    {selected ? (
+                                      <span className="flex items-center gap-1 text-xs font-semibold">
+                                        Won <Check className="size-4" />
+                                      </span>
+                                    ) : player && tournamentLocked && !match.locked ? (
+                                      <span className="text-xs font-semibold">Win</span>
+                                    ) : null}
                                   </Button>
                                 );
                               })}

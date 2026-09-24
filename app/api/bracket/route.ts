@@ -161,6 +161,19 @@ export async function POST(request: Request) {
       }
       const picks = { ...payload.picks };
       if (action.winnerId) {
+        const match = buildBracket(payload).matches.find(
+          (candidate) => candidate.id === action.matchId
+        );
+        if (
+          !match ||
+          match.locked ||
+          (match.playerA?.id !== action.winnerId && match.playerB?.id !== action.winnerId)
+        ) {
+          return Response.json(
+            { error: "That team is not available to advance in this match yet." },
+            { status: 400 }
+          );
+        }
         picks[action.matchId] = action.winnerId;
       } else {
         delete picks[action.matchId];

@@ -128,6 +128,7 @@ function resolveSource(
 
 export function buildBracket(payload: BracketPayload): BracketView {
   const mode = getTournamentMode(payload);
+  const tournamentStarted = Boolean(payload.locked);
   const roster = payload.players.slice(0, 64);
   const unpairedPlayer = mode === "doubles" && roster.length % 2 ? roster.at(-1)! : null;
   const players =
@@ -178,6 +179,7 @@ export function buildBracket(payload: BracketPayload): BracketView {
           ? playersById.get(pickedWinnerId) ?? null
           : null;
       const autoWinner =
+        tournamentStarted &&
         !pickedWinner &&
         sideA.ready &&
         sideB.ready &&
@@ -193,7 +195,7 @@ export function buildBracket(payload: BracketPayload): BracketView {
           : null;
       const ready =
         Boolean(winner) ||
-        (sideA.ready && sideB.ready && !sideA.player && !sideB.player);
+        (tournamentStarted && sideA.ready && sideB.ready && !sideA.player && !sideB.player);
       const match: BracketMatch = {
         id,
         round,
