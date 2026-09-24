@@ -69,6 +69,8 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [newPlayer, setNewPlayer] = useState("");
   const mounted = useRef(true);
+  const rosterEditing = useRef(false);
+  const titleEditing = useRef(false);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -78,8 +80,12 @@ export default function Home() {
       if (!response.ok) throw new Error(next.error || "Could not load bracket");
       if (!mounted.current) return;
       setData(next);
-      setTitle(next.title);
-      setRoster(next.payload.players.map((player) => player.name).join("\n"));
+      if (!titleEditing.current) {
+        setTitle(next.title);
+      }
+      if (!rosterEditing.current) {
+        setRoster(next.payload.players.map((player) => player.name).join("\n"));
+      }
       setError("");
     } catch (loadError) {
       if (!mounted.current) return;
@@ -102,6 +108,8 @@ export default function Home() {
       setData(next);
       setTitle(next.title);
       setRoster(next.payload.players.map((player) => player.name).join("\n"));
+      titleEditing.current = false;
+      rosterEditing.current = false;
       setError("");
       return next;
     } catch (saveError) {
@@ -249,6 +257,7 @@ export default function Home() {
   }
 
   function saveRoster() {
+    rosterEditing.current = false;
     const names = roster
       .split("\n")
       .map((name) => name.trim())
@@ -287,8 +296,15 @@ export default function Home() {
             </div>
             <Input
               value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              onFocus={() => {
+                titleEditing.current = true;
+              }}
+              onChange={(event) => {
+                titleEditing.current = true;
+                setTitle(event.target.value);
+              }}
               onBlur={() => {
+                titleEditing.current = false;
                 if (data && title.trim() && title.trim() !== data.title) {
                   void save({ type: "setTitle", title: title.trim() });
                 }
@@ -398,7 +414,16 @@ export default function Home() {
 
             <Textarea
               value={roster}
-              onChange={(event) => setRoster(event.target.value)}
+              onFocus={() => {
+                rosterEditing.current = true;
+              }}
+              onChange={(event) => {
+                rosterEditing.current = true;
+                setRoster(event.target.value);
+              }}
+              onBlur={() => {
+                rosterEditing.current = false;
+              }}
               disabled={tournamentLocked}
               className="min-h-[190px] resize-y bg-white/70 leading-6 dark:bg-black/10 sm:min-h-[250px]"
               aria-label="Player roster"
