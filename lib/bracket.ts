@@ -1,7 +1,10 @@
 export type Player = {
   id: string;
   name: string;
+  memberIds?: string[];
 };
+
+export type TournamentMode = "singles" | "doubles";
 
 export type MatchSource =
   | { type: "player"; playerId: string }
@@ -29,6 +32,7 @@ export type BracketPayload = {
   players: Player[];
   picks: Record<string, string>;
   locked?: boolean;
+  mode?: TournamentMode;
 };
 
 export type BracketView = {
@@ -36,6 +40,8 @@ export type BracketView = {
   matches: BracketMatch[];
   champion: Player | null;
   rounds: string[];
+  mode: TournamentMode;
+  unpairedPlayer: Player | null;
 };
 
 const DEFAULT_NAMES = [
@@ -85,7 +91,12 @@ export function defaultPayload(): BracketPayload {
     players: namesToPlayers(DEFAULT_NAMES),
     picks: {},
     locked: false,
+    mode: "doubles",
   };
+}
+
+export function getTournamentMode(payload: BracketPayload): TournamentMode {
+  return payload.mode === "singles" ? "singles" : "doubles";
 }
 
 function nextPowerOfTwo(value: number) {
@@ -116,7 +127,21 @@ function resolveSource(
 }
 
 export function buildBracket(payload: BracketPayload): BracketView {
-  const players = payload.players.slice(0, 64);
+  const mode = getTournamentMode(payload);
+  const roster = payload.players.slice(0, 64);
+  const unpairedPlayer = mode === "doubles" && roster.length % 2 ? roster.at(-1)! : null;
+  const players =
+    mode === "singles"
+      ? roster
+      : Array.from({ length: Math.floor(roster.length / 2) }, (_, index) => {
+          const first = roster[index * 2];
+          const second = roster[index * 2 + 1];
+          return {
+            id: `team-${first.id}-${second.id}`,
+            name: `${first.name} / ${second.name}`,
+            memberIds: [first.id, second.id],
+          };
+        });
   const playersById = new Map(players.map((player) => [player.id, player]));
   const size = nextPowerOfTwo(Math.max(players.length, 2));
   const totalRounds = Math.log2(size);
@@ -216,6 +241,8 @@ export function buildBracket(payload: BracketPayload): BracketView {
     rounds: Array.from({ length: totalRounds }, (_, index) =>
       roundName(index + 1, totalRounds)
     ),
+    mode,
+    unpairedPlayer,
   };
 }
 
@@ -224,6 +251,7 @@ export function pruneInvalidPicks(payload: BracketPayload) {
     players: payload.players,
     picks: { ...payload.picks },
     locked: payload.locked,
+    mode: getTournamentMode(payload),
   };
   let changed = true;
 

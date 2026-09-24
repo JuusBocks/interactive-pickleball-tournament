@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import type { BracketView } from "@/lib/bracket";
 
+type TournamentMode = "singles" | "doubles";
+
 type BracketResponse = {
   title: string;
   revision: number;
@@ -29,6 +31,7 @@ type BracketResponse = {
     players: Array<{ id: string; name: string }>;
     picks: Record<string, string>;
     locked?: boolean;
+    mode?: TournamentMode;
   };
   view: BracketView;
   error?: string;
@@ -37,6 +40,7 @@ type BracketResponse = {
 type SaveAction =
   | { type: "setWinner"; matchId: string; winnerId: string | null }
   | { type: "setRoster"; names: string[] }
+  | { type: "setMode"; mode: TournamentMode }
   | { type: "addPlayer"; name: string }
   | { type: "removePlayer"; playerId: string }
   | { type: "shufflePlayers" }
@@ -160,6 +164,7 @@ export default function Home() {
               ? {
                   title: data.title,
                   revision: data.revision,
+                  mode: data.view.mode,
                   champion: data.view.champion?.name ?? null,
                   players: data.view.players,
                   matches: data.view.matches,
@@ -224,6 +229,18 @@ export default function Home() {
     ? DATE_FORMATTER.format(new Date(`${data.updatedAt.replace(" ", "T")}Z`))
     : "";
   const tournamentLocked = Boolean(data?.payload.locked);
+  const tournamentMode: TournamentMode = data?.payload.mode === "singles" ? "singles" : "doubles";
+  const rosterCount = data?.payload.players.length ?? 0;
+  const canStart =
+    tournamentMode === "singles"
+      ? rosterCount >= 2
+      : rosterCount >= 4 && rosterCount % 2 === 0;
+  const setupWarning =
+    tournamentMode === "doubles" && rosterCount % 2 === 1
+      ? "2v2 needs one more player to complete the last team."
+      : tournamentMode === "doubles" && rosterCount < 4
+        ? "2v2 needs at least four players."
+        : "";
 
   async function copyLink() {
     await navigator.clipboard.writeText(window.location.href);
@@ -257,6 +274,9 @@ export default function Home() {
               </Badge>
               <Badge variant={tournamentLocked ? "default" : "outline"} className="rounded-md">
                 {tournamentLocked ? "Started" : "Setup"}
+              </Badge>
+              <Badge variant="outline" className="rounded-md bg-white/70">
+                {tournamentMode === "doubles" ? "2v2" : "1v1"}
               </Badge>
               <Badge variant="outline" className="rounded-md bg-white/70">
                 Revision {data?.revision ?? "-"}
@@ -319,11 +339,38 @@ export default function Home() {
               <div>
                 <h2 className="text-lg font-semibold">Setup</h2>
                 <p className="text-sm text-muted-foreground">
-                  Add players, shuffle the bracket order, then start the tournament.
+                  Choose the format, add players, shuffle, then start.
                 </p>
               </div>
               <Users className="size-5 text-primary" />
             </div>
+
+            <div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-1">
+              <Button
+                type="button"
+                variant={tournamentMode === "singles" ? "default" : "ghost"}
+                onClick={() => void save({ type: "setMode", mode: "singles" })}
+                disabled={tournamentLocked || saving}
+                className="min-h-11"
+              >
+                1v1
+              </Button>
+              <Button
+                type="button"
+                variant={tournamentMode === "doubles" ? "default" : "ghost"}
+                onClick={() => void save({ type: "setMode", mode: "doubles" })}
+                disabled={tournamentLocked || saving}
+                className="min-h-11"
+              >
+                2v2
+              </Button>
+            </div>
+
+            {setupWarning ? (
+              <div className="rounded-md border border-[#db7c26]/30 bg-[#db7c26]/10 px-3 py-2 text-sm text-[#7a3f08] dark:text-[#f0b775]">
+                {setupWarning}
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
               <Input
@@ -372,7 +419,7 @@ export default function Home() {
                 className="min-h-11"
               >
                 <Shuffle />
-                Shuffle
+                {tournamentMode === "doubles" ? "Shuffle teams" : "Shuffle"}
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -391,7 +438,7 @@ export default function Home() {
                     type: tournamentLocked ? "unlockSetup" : "startTournament",
                   })
                 }
-                disabled={saving || (data?.payload.players.length ?? 0) < 2}
+                disabled={saving || (!tournamentLocked && !canStart)}
                 className="min-h-11"
               >
                 {tournamentLocked ? <Unlock /> : <Lock />}
@@ -401,9 +448,13 @@ export default function Home() {
 
             <div className="space-y-2 border-t border-border pt-4">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">Standings</span>
+                <span className="font-medium">
+                  {tournamentMode === "doubles" ? "Teams" : "Standings"}
+                </span>
                 <span className="text-muted-foreground">
-                  {data?.view.players.length ?? 0} players
+                  {tournamentMode === "doubles"
+                    ? `${data?.view.players.length ?? 0} teams`
+                    : `${data?.view.players.length ?? 0} players`}
                 </span>
               </div>
               <div className="max-h-[260px] space-y-2 overflow-auto pr-1 sm:max-h-[340px]">
@@ -432,6 +483,11 @@ export default function Home() {
                     ) : null}
                   </div>
                 ))}
+                {tournamentMode === "doubles" && data?.view.unpairedPlayer ? (
+                  <div className="rounded-md border border-dashed border-[#db7c26]/40 bg-[#db7c26]/10 px-3 py-2 text-sm">
+                    Waiting for partner: {data.view.unpairedPlayer.name}
+                  </div>
+                ) : null}
               </div>
             </div>
           </aside>
@@ -442,8 +498,8 @@ export default function Home() {
                 <h2 className="text-lg font-semibold">Bracket</h2>
                 <p className="text-sm text-muted-foreground">
                   {tournamentLocked
-                    ? "Tap a player to advance them. Open screens update automatically."
-                    : "Shuffle and start the tournament to enable match picks."}
+                    ? `Tap a ${tournamentMode === "doubles" ? "team" : "player"} to advance them. Open screens update automatically.`
+                    : `${tournamentMode === "doubles" ? "Shuffle teams" : "Shuffle players"} and start the tournament to enable match picks.`}
                 </p>
               </div>
               <div className="flex min-h-11 items-center gap-2 rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
@@ -464,7 +520,8 @@ export default function Home() {
 
                 {!tournamentLocked && data ? (
                   <div className="rounded-md border border-dashed border-[#0f6b4f]/40 bg-accent/60 p-4 text-sm text-accent-foreground md:col-span-full">
-                    Setup is unlocked. Add everyone, use Shuffle to randomize the matchups, then tap Start.
+                    Setup is unlocked. Add everyone, use Shuffle to randomize{" "}
+                    {tournamentMode === "doubles" ? "teams" : "matchups"}, then tap Start.
                   </div>
                 ) : null}
 

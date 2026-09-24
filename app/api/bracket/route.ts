@@ -6,9 +6,11 @@ import {
   buildBracket,
   defaultPayload,
   DEFAULT_TITLE,
+  getTournamentMode,
   namesToPlayers,
   pruneInvalidPicks,
   type BracketPayload,
+  type TournamentMode,
 } from "@/lib/bracket";
 
 const BRACKET_ID = "main";
@@ -22,6 +24,10 @@ const requestSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("setRoster"),
     names: z.array(z.string()).min(2).max(64),
+  }),
+  z.object({
+    type: z.literal("setMode"),
+    mode: z.enum(["singles", "doubles"]),
   }),
   z.object({
     type: z.literal("addPlayer"),
@@ -65,7 +71,21 @@ function normalizePayload(payload: BracketPayload): BracketPayload {
     players: payload.players ?? [],
     picks: payload.picks ?? {},
     locked: Boolean(payload.locked),
+    mode: getTournamentMode(payload),
   };
+}
+
+function startValidationError(mode: TournamentMode, playerCount: number) {
+  if (mode === "singles" && playerCount < 2) {
+    return "Add at least two players before starting.";
+  }
+  if (mode === "doubles" && playerCount < 4) {
+    return "Add at least four players for a 2v2 tournament.";
+  }
+  if (mode === "doubles" && playerCount % 2 !== 0) {
+    return "2v2 needs an even number of players. Add one more player or remove the unpaired player.";
+  }
+  return "";
 }
 
 function shufflePlayers(players: BracketPayload["players"]) {
@@ -153,6 +173,16 @@ export async function POST(request: Request) {
         players: namesToPlayers(action.names),
         picks: {},
         locked: false,
+        mode: payload.mode,
+      };
+    }
+
+    if (action.type === "setMode") {
+      payload = {
+        ...payload,
+        picks: {},
+        locked: false,
+        mode: action.mode,
       };
     }
 
@@ -167,6 +197,7 @@ export async function POST(request: Request) {
         ]),
         picks: {},
         locked: false,
+        mode: payload.mode,
       };
     }
 
@@ -182,6 +213,7 @@ export async function POST(request: Request) {
         players: remaining,
         picks: {},
         locked: false,
+        mode: payload.mode,
       };
     }
 
@@ -190,10 +222,18 @@ export async function POST(request: Request) {
         players: shufflePlayers(payload.players),
         picks: {},
         locked: false,
+        mode: payload.mode,
       };
     }
 
     if (action.type === "startTournament") {
+      const validationError = startValidationError(
+        getTournamentMode(payload),
+        payload.players.length
+      );
+      if (validationError) {
+        return Response.json({ error: validationError }, { status: 400 });
+      }
       payload = {
         ...payload,
         picks: {},
