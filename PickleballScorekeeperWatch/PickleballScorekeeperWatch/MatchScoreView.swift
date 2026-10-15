@@ -13,6 +13,10 @@ struct MatchScoreView: View {
         let serveColor: Color = game.score.serverNumber == 1 ? .orange : .blue
 
         VStack(spacing: 6) {
+            Text("\(game.roundName.uppercased()) • MATCH \(game.index)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             teamCard(name: game.playerA?.name ?? "Top team", score: game.score.scoreA, side: "a", enabled: game.isPlayable)
             teamCard(name: game.playerB?.name ?? "Bottom team", score: game.score.scoreB, side: "b", enabled: game.isPlayable)
 

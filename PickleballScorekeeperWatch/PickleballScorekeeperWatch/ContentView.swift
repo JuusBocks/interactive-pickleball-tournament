@@ -5,28 +5,21 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            List {
                 if let bracket = store.bracket {
-                    List {
-                        ForEach(bracket.view.rounds, id: \.self) { round in
-                            let matches = bracket.view.matches.filter { $0.roundName == round }
-                            if !matches.isEmpty {
-                                Section(round) {
-                                    ForEach(matches) { match in
-                                        NavigationLink(value: match) { MatchRow(match: match) }
-                                    }
-                                }
-                            }
+                    ForEach(bracket.view.matches) { match in
+                        NavigationLink(value: match) {
+                            MatchRow(match: match)
                         }
                     }
-                } else if let error = store.errorMessage {
-                    ContentUnavailableView("Scorekeeper unavailable", systemImage: "wifi.exclamationmark", description: Text(error))
                 } else {
-                    ProgressView("Loading bracket")
+                    ProgressView("Loading scores")
                 }
             }
-            .navigationTitle(store.bracket?.title ?? "Pickleball")
-            .navigationDestination(for: Match.self) { MatchScoreView(match: $0) }
+            .navigationTitle("Pickleball")
+            .navigationDestination(for: Match.self) { match in
+                MatchScoreView(match: match)
+            }
             .task {
                 while !Task.isCancelled {
                     await store.refresh()
@@ -40,16 +33,19 @@ struct ContentView: View {
 
 private struct MatchRow: View {
     let match: Match
+
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("Match \(match.index)").font(.caption).foregroundStyle(.secondary)
-            Text(match.playerA?.name ?? "Waiting").lineLimit(1)
-            Text(match.playerB?.name ?? "Waiting").lineLimit(1)
-            if match.playerA != nil && match.playerB != nil {
-                Text("\(match.score.scoreA) – \(match.score.scoreB)  ·  \(match.score.servingLabel)")
-                    .font(.caption2)
-                    .foregroundStyle(match.isPlayable ? Color.accentColor : Color.secondary)
-            }
+            Text("\(match.roundName.uppercased()) • MATCH \(match.index)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(match.isPlayable ? Color.accentColor : Color.secondary)
+            Text(match.playerA?.name ?? "Waiting")
+                .lineLimit(1)
+            Text(match.playerB?.name ?? "Waiting")
+                .lineLimit(1)
+            Text("\(match.score.scoreA) – \(match.score.scoreB)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
