@@ -6,6 +6,7 @@ import {
   Copy,
   Lock,
   ListRestart,
+  Minus,
   Plus,
   RefreshCcw,
   RotateCcw,
@@ -39,6 +40,10 @@ type BracketResponse = {
 
 type SaveAction =
   | { type: "setWinner"; matchId: string; winnerId: string | null }
+  | { type: "adjustScore"; matchId: string; side: "a" | "b"; delta: 1 | -1 }
+  | { type: "advanceServe"; matchId: string }
+  | { type: "setServerNumber"; matchId: string; serverNumber: 1 | 2 }
+  | { type: "undoScoreAction"; matchId: string }
   | { type: "setRoster"; names: string[] }
   | { type: "setMode"; mode: TournamentMode }
   | { type: "addPlayer"; name: string }
@@ -523,7 +528,7 @@ export default function Home() {
                 <h2 className="text-lg font-semibold">Bracket</h2>
                 <p className="text-sm text-muted-foreground">
                   {tournamentLocked
-                    ? `Tap a ${tournamentMode === "doubles" ? "team" : "player"} to advance them. Open screens update automatically.`
+                    ? "Keep score here or on your Apple Watch. Mark the winner after the game ends."
                     : `${tournamentMode === "doubles" ? "Shuffle teams" : "Shuffle players"} and start the tournament to enable match picks.`}
                 </p>
               </div>
@@ -604,6 +609,34 @@ export default function Home() {
                                 );
                               })}
                             </div>
+                            {tournamentLocked && match.playerA && match.playerB && !match.winner ? (
+                              <div className="mt-3 space-y-2 border-t border-border pt-3">
+                                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-center">
+                                  <div>
+                                    <div className="text-2xl font-bold tabular-nums">{match.score.scoreA}</div>
+                                    <div className="text-[11px] text-muted-foreground">{match.score.servingSide === "a" ? `Serving · ${match.score.serverNumber}` : "Receiving"}</div>
+                                  </div>
+                                  <span className="text-xs font-semibold text-muted-foreground">SCORE</span>
+                                  <div>
+                                    <div className="text-2xl font-bold tabular-nums">{match.score.scoreB}</div>
+                                    <div className="text-[11px] text-muted-foreground">{match.score.servingSide === "b" ? `Serving · ${match.score.serverNumber}` : "Receiving"}</div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button variant="outline" className="min-h-11" disabled={saving} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "a", delta: 1 })}>+ {playerLabel(match.playerA.name)}</Button>
+                                  <Button variant="outline" className="min-h-11" disabled={saving} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "b", delta: 1 })}>+ {playerLabel(match.playerB.name)}</Button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <Button variant="outline" size="sm" disabled={saving || match.score.scoreA === 0} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "a", delta: -1 })}><Minus /> A</Button>
+                                  <Button variant="outline" size="sm" disabled={saving || match.score.history.length === 0} onClick={() => void save({ type: "undoScoreAction", matchId: match.id })}><RotateCcw /> Undo</Button>
+                                  <Button variant="outline" size="sm" disabled={saving || match.score.scoreB === 0} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "b", delta: -1 })}>B <Minus /></Button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Button variant="secondary" size="sm" disabled={saving} onClick={() => void save({ type: "advanceServe", matchId: match.id })}>Change serve</Button>
+                                  <Button variant="secondary" size="sm" disabled={saving} onClick={() => void save({ type: "setServerNumber", matchId: match.id, serverNumber: match.score.serverNumber === 1 ? 2 : 1 })}>Server {match.score.serverNumber} · Switch</Button>
+                                </div>
+                              </div>
+                            ) : null}
                           </article>
                         );
                       })}

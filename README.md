@@ -15,6 +15,8 @@ Live site: [live-pickleball-bracket.work-email-bruh.chatgpt.site](https://live-p
 - In `2v2` mode, groups players into teams of two after shuffling.
 - Locks the setup when the tournament starts so the bracket does not accidentally change mid-event.
 - Lets the organizer tap `Win` on a match to advance that player or team.
+- Keeps a live point score, serving team, and server number for every active match.
+- Lets the scorer undo the last score or serving change.
 - Updates all open phones automatically every few seconds.
 - Shows wins, losses, byes, current rounds, and the pending or final champion.
 - Includes a Copy Link button so the bracket can be shared quickly.
@@ -30,6 +32,10 @@ Live site: [live-pickleball-bracket.work-email-bruh.chatgpt.site](https://live-p
 7. For each match, tap `Win` on the player or team that won.
 8. The winner automatically moves into the next round.
 9. Everyone with the link sees the bracket refresh live.
+
+## Apple Watch scorekeeper
+
+The native Watch source lives in [PickleballScorekeeperWatch](./PickleballScorekeeperWatch). It uses this site as its shared source of truth: open the bracket, select a match, update points and serving, then finish the game to advance the winner. See its README for the quick Xcode install steps.
 
 ## 1v1 Mode
 

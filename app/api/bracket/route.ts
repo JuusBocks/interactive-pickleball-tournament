@@ -5,9 +5,11 @@ import { bracketStates } from "@/db/schema";
 import {
   buildBracket,
   defaultPayload,
+  defaultMatchScore,
   DEFAULT_TITLE,
   getTournamentMode,
   namesToPlayers,
+  normalizeMatchScore,
   pruneInvalidPicks,
   type BracketPayload,
   type TournamentMode,
@@ -20,6 +22,25 @@ const requestSchema = z.discriminatedUnion("type", [
     type: z.literal("setWinner"),
     matchId: z.string(),
     winnerId: z.string().nullable(),
+  }),
+  z.object({
+    type: z.literal("adjustScore"),
+    matchId: z.string(),
+    side: z.enum(["a", "b"]),
+    delta: z.union([z.literal(1), z.literal(-1)]),
+  }),
+  z.object({
+    type: z.literal("advanceServe"),
+    matchId: z.string(),
+  }),
+  z.object({
+    type: z.literal("setServerNumber"),
+    matchId: z.string(),
+    serverNumber: z.union([z.literal(1), z.literal(2)]),
+  }),
+  z.object({
+    type: z.literal("undoScoreAction"),
+    matchId: z.string(),
   }),
   z.object({
     type: z.literal("setRoster"),
@@ -72,6 +93,37 @@ function normalizePayload(payload: BracketPayload): BracketPayload {
     picks: payload.picks ?? {},
     locked: Boolean(payload.locked),
     mode: getTournamentMode(payload),
+    matchScores: payload.matchScores ?? {},
+  };
+}
+
+function matchIsPlayable(payload: BracketPayload, matchId: string) {
+  const match = buildBracket(payload).matches.find((candidate) => candidate.id === matchId);
+  return match && match.playerA && match.playerB && !match.winner ? match : null;
+}
+
+function saveScoreSnapshot(score: ReturnType<typeof normalizeMatchScore>) {
+  return {
+    scoreA: score.scoreA,
+    scoreB: score.scoreB,
+    servingSide: score.servingSide,
+    serverNumber: score.serverNumber,
+  };
+}
+
+function updateScore(
+  payload: BracketPayload,
+  matchId: string,
+  update: (score: ReturnType<typeof normalizeMatchScore>) => ReturnType<typeof normalizeMatchScore>
+) {
+  if (!matchIsPlayable(payload, matchId)) {
+    throw new Error("That match is not ready for scoring.");
+  }
+  const current = normalizeMatchScore(payload.matchScores?.[matchId] ?? defaultMatchScore());
+  const next = update(current);
+  return {
+    ...payload,
+    matchScores: { ...(payload.matchScores ?? {}), [matchId]: next },
   };
 }
 
@@ -181,10 +233,51 @@ export async function POST(request: Request) {
       payload = pruneInvalidPicks({ ...payload, picks });
     }
 
+    if (action.type === "adjustScore") {
+      payload = updateScore(payload, action.matchId, (score) => ({
+        ...score,
+        scoreA: Math.max(0, score.scoreA + (action.side === "a" ? action.delta : 0)),
+        scoreB: Math.max(0, score.scoreB + (action.side === "b" ? action.delta : 0)),
+        history: [...score.history, saveScoreSnapshot(score)].slice(-80),
+      }));
+    }
+
+    if (action.type === "advanceServe") {
+      payload = updateScore(payload, action.matchId, (score) => {
+        const current = saveScoreSnapshot(score);
+        if (score.serverNumber === 1) {
+          return { ...score, serverNumber: 2, history: [...score.history, current].slice(-80) };
+        }
+        return {
+          ...score,
+          servingSide: score.servingSide === "a" ? "b" : "a",
+          serverNumber: 1,
+          history: [...score.history, current].slice(-80),
+        };
+      });
+    }
+
+    if (action.type === "setServerNumber") {
+      payload = updateScore(payload, action.matchId, (score) => ({
+        ...score,
+        serverNumber: action.serverNumber,
+        history: [...score.history, saveScoreSnapshot(score)].slice(-80),
+      }));
+    }
+
+    if (action.type === "undoScoreAction") {
+      payload = updateScore(payload, action.matchId, (score) => {
+        const previous = score.history.at(-1);
+        if (!previous) return score;
+        return { ...previous, history: score.history.slice(0, -1) };
+      });
+    }
+
     if (action.type === "setRoster") {
       payload = {
         players: namesToPlayers(action.names),
         picks: {},
+        matchScores: {},
         locked: false,
         mode: payload.mode,
       };
@@ -194,6 +287,7 @@ export async function POST(request: Request) {
       payload = {
         ...payload,
         picks: {},
+        matchScores: {},
         locked: false,
         mode: action.mode,
       };
@@ -209,6 +303,7 @@ export async function POST(request: Request) {
           action.name,
         ]),
         picks: {},
+        matchScores: {},
         locked: false,
         mode: payload.mode,
       };
@@ -225,6 +320,7 @@ export async function POST(request: Request) {
       payload = {
         players: remaining,
         picks: {},
+        matchScores: {},
         locked: false,
         mode: payload.mode,
       };
@@ -234,6 +330,7 @@ export async function POST(request: Request) {
       payload = {
         players: shufflePlayers(payload.players),
         picks: {},
+        matchScores: {},
         locked: false,
         mode: payload.mode,
       };
@@ -250,6 +347,7 @@ export async function POST(request: Request) {
       payload = {
         ...payload,
         picks: {},
+        matchScores: {},
         locked: true,
       };
     }
@@ -258,6 +356,7 @@ export async function POST(request: Request) {
       payload = {
         ...payload,
         picks: {},
+        matchScores: {},
         locked: false,
       };
     }
@@ -267,7 +366,7 @@ export async function POST(request: Request) {
     }
 
     if (action.type === "resetResults") {
-      payload = { ...payload, picks: {} };
+      payload = { ...payload, picks: {}, matchScores: {} };
     }
 
     if (action.type === "restoreDefault") {
@@ -288,7 +387,11 @@ export async function POST(request: Request) {
     const updated = await readRow();
     return Response.json(serialize(updated));
   } catch (error) {
-    const status = error instanceof z.ZodError ? 400 : 500;
+    const status =
+      error instanceof z.ZodError ||
+      (error instanceof Error && error.message === "That match is not ready for scoring.")
+        ? 400
+        : 500;
     return Response.json({ error: routeError(error) }, { status });
   }
 }

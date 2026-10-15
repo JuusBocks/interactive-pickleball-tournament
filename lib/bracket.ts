@@ -26,6 +26,20 @@ export type BracketMatch = {
   autoAdvanced: boolean;
   ready: boolean;
   locked: boolean;
+  score: MatchScore;
+};
+
+export type ScoreSide = "a" | "b";
+
+export type MatchScoreSnapshot = {
+  scoreA: number;
+  scoreB: number;
+  servingSide: ScoreSide;
+  serverNumber: 1 | 2;
+};
+
+export type MatchScore = MatchScoreSnapshot & {
+  history: MatchScoreSnapshot[];
 };
 
 export type BracketPayload = {
@@ -33,6 +47,7 @@ export type BracketPayload = {
   picks: Record<string, string>;
   locked?: boolean;
   mode?: TournamentMode;
+  matchScores?: Record<string, MatchScore>;
 };
 
 export type BracketView = {
@@ -92,11 +107,32 @@ export function defaultPayload(): BracketPayload {
     picks: {},
     locked: false,
     mode: "doubles",
+    matchScores: {},
   };
 }
 
 export function getTournamentMode(payload: BracketPayload): TournamentMode {
   return payload.mode === "singles" ? "singles" : "doubles";
+}
+
+export function defaultMatchScore(): MatchScore {
+  return { scoreA: 0, scoreB: 0, servingSide: "a", serverNumber: 1, history: [] };
+}
+
+export function normalizeMatchScore(value?: Partial<MatchScore>): MatchScore {
+  const scoreA = Math.max(0, Math.floor(value?.scoreA ?? 0));
+  const scoreB = Math.max(0, Math.floor(value?.scoreB ?? 0));
+  const servingSide: ScoreSide = value?.servingSide === "b" ? "b" : "a";
+  const serverNumber: 1 | 2 = value?.serverNumber === 2 ? 2 : 1;
+  const history = Array.isArray(value?.history)
+    ? value.history.slice(-80).map((snapshot) => ({
+        scoreA: Math.max(0, Math.floor(snapshot.scoreA ?? 0)),
+        scoreB: Math.max(0, Math.floor(snapshot.scoreB ?? 0)),
+        servingSide: snapshot.servingSide === "b" ? "b" : "a",
+        serverNumber: snapshot.serverNumber === 2 ? 2 : 1,
+      }))
+    : [];
+  return { scoreA, scoreB, servingSide, serverNumber, history };
 }
 
 function nextPowerOfTwo(value: number) {
@@ -211,6 +247,7 @@ export function buildBracket(payload: BracketPayload): BracketView {
         autoAdvanced: Boolean(autoWinner),
         ready,
         locked: !sideA.player || !sideB.player,
+        score: normalizeMatchScore(payload.matchScores?.[id]),
       };
 
       matchesById.set(id, match);
@@ -254,6 +291,7 @@ export function pruneInvalidPicks(payload: BracketPayload) {
     picks: { ...payload.picks },
     locked: payload.locked,
     mode: getTournamentMode(payload),
+    matchScores: { ...(payload.matchScores ?? {}) },
   };
   let changed = true;
 
