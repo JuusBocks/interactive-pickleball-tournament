@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/db";
-import { bracketStates } from "@/db/schema";
+import { bracketStates, tournamentRecords } from "@/db/schema";
 import {
   buildBracket,
   defaultPayload,
@@ -187,6 +187,20 @@ function serialize(row: Awaited<ReturnType<typeof readRow>>) {
   };
 }
 
+async function archiveCompletedTournament(title: string, payload: BracketPayload) {
+  const view = buildBracket(payload);
+  if (!view.champion) return;
+
+  await getDb().insert(tournamentRecords).values({
+    id: crypto.randomUUID(),
+    title,
+    mode: view.mode,
+    championName: view.champion.name,
+    players: JSON.stringify(view.players),
+    matches: JSON.stringify(view.matches),
+  });
+}
+
 export async function GET() {
   try {
     const row = await readRow();
@@ -203,6 +217,10 @@ export async function POST(request: Request) {
     const currentPayload = normalizePayload(JSON.parse(row.payload) as BracketPayload);
     let title = row.title;
     let payload = currentPayload;
+
+    if (["resetResults", "unlockSetup", "restoreDefault"].includes(action.type)) {
+      await archiveCompletedTournament(row.title, currentPayload);
+    }
 
     if (action.type === "setWinner") {
       if (!payload.locked) {

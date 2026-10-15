@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Copy,
+  History,
   Lock,
   ListRestart,
   Minus,
@@ -36,6 +37,17 @@ type BracketResponse = {
   };
   view: BracketView;
   error?: string;
+};
+
+type RecordsResponse = {
+  tournaments: Array<{
+    id: string;
+    title: string;
+    mode: TournamentMode;
+    championName: string;
+    completedAt: string;
+  }>;
+  standings: Array<{ name: string; wins: number; losses: number; titles: number }>;
 };
 
 type SaveAction =
@@ -73,9 +85,21 @@ export default function Home() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [newPlayer, setNewPlayer] = useState("");
+  const [records, setRecords] = useState<RecordsResponse | null>(null);
   const mounted = useRef(true);
   const rosterEditing = useRef(false);
   const titleEditing = useRef(false);
+
+  const loadRecords = useCallback(async () => {
+    try {
+      const response = await fetch("/api/records", { cache: "no-store" });
+      if (!response.ok) return;
+      const next = (await response.json()) as RecordsResponse;
+      if (mounted.current) setRecords(next);
+    } catch {
+      // The live bracket stays usable even if historical records are unavailable.
+    }
+  }, []);
 
   const load = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
@@ -116,6 +140,7 @@ export default function Home() {
       titleEditing.current = false;
       rosterEditing.current = false;
       setError("");
+      void loadRecords();
       return next;
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Could not save change");
@@ -123,18 +148,21 @@ export default function Home() {
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [loadRecords]);
 
   useEffect(() => {
     mounted.current = true;
-    const firstLoad = window.setTimeout(() => void load(), 0);
+    const firstLoad = window.setTimeout(() => {
+      void load();
+      void loadRecords();
+    }, 0);
     const interval = window.setInterval(() => void load(true), 2500);
     return () => {
       mounted.current = false;
       window.clearTimeout(firstLoad);
       window.clearInterval(interval);
     };
-  }, [load]);
+  }, [load, loadRecords]);
 
   useEffect(() => {
     const modelContext = (
@@ -623,8 +651,24 @@ export default function Home() {
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <Button variant="outline" className="min-h-11" disabled={saving} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "a", delta: 1 })}>+ {playerLabel(match.playerA.name)}</Button>
-                                  <Button variant="outline" className="min-h-11" disabled={saving} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "b", delta: 1 })}>+ {playerLabel(match.playerB.name)}</Button>
+                                  <Button
+                                    variant="default"
+                                    className="min-h-11 justify-between"
+                                    disabled={saving}
+                                    onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "a", delta: 1 })}
+                                    aria-label={`Add a point for ${playerLabel(match.playerA.name)}`}
+                                  >
+                                    <span>Team A</span><span className="rounded bg-white/20 px-2 py-0.5 text-base font-bold">+1</span>
+                                  </Button>
+                                  <Button
+                                    variant="default"
+                                    className="min-h-11 justify-between bg-[#6d3fa3] hover:bg-[#5b3589]"
+                                    disabled={saving}
+                                    onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "b", delta: 1 })}
+                                    aria-label={`Add a point for ${playerLabel(match.playerB.name)}`}
+                                  >
+                                    <span>Team B</span><span className="rounded bg-white/20 px-2 py-0.5 text-base font-bold">+1</span>
+                                  </Button>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2">
                                   <Button variant="outline" size="sm" disabled={saving || match.score.scoreA === 0} onClick={() => void save({ type: "adjustScore", matchId: match.id, side: "a", delta: -1 })}><Minus /> A</Button>
@@ -646,6 +690,45 @@ export default function Home() {
               </div>
             </div>
           </section>
+        </section>
+
+        <section className="rounded-md border border-border bg-card p-3 shadow-sm sm:p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold"><History className="size-5 text-primary" /> Master record</h2>
+              <p className="text-sm text-muted-foreground">Completed tournaments are saved when you clear results or edit the setup. Doubles are tracked as pairs; singles as individual players.</p>
+            </div>
+            <Badge variant="outline">{records?.tournaments.length ?? 0} saved</Badge>
+          </div>
+          {records?.tournaments.length ? (
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,.9fr)]">
+              <div className="overflow-hidden rounded-md border border-border">
+                <div className="border-b border-border bg-muted/60 px-3 py-2 text-sm font-medium">Tournament history</div>
+                <div className="divide-y divide-border">
+                  {records.tournaments.map((record) => (
+                    <div key={record.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+                      <div className="min-w-0"><p className="truncate font-medium">{record.title}</p><p className="text-xs text-muted-foreground">{record.mode === "doubles" ? "2v2 pairs" : "1v1 singles"} · {DATE_FORMATTER.format(new Date(`${record.completedAt.replace(" ", "T")}Z`))}</p></div>
+                      <div className="shrink-0 text-right"><p className="text-xs text-muted-foreground">Champion</p><p className="max-w-40 truncate font-semibold">{record.championName}</p></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-md border border-border">
+                <div className="border-b border-border bg-muted/60 px-3 py-2 text-sm font-medium">All-time standings</div>
+                <div className="divide-y divide-border">
+                  {records.standings.slice(0, 8).map((standing) => (
+                    <div key={standing.name} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 px-3 py-2 text-sm">
+                      <span className="truncate font-medium">{standing.name}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">{standing.wins}-{standing.losses}</span>
+                      <Badge variant="secondary">{standing.titles} title{standing.titles === 1 ? "" : "s"}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-md border border-dashed border-border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">Your first completed tournament will appear here after you clear its results or unlock setup.</div>
+          )}
         </section>
       </div>
     </main>
