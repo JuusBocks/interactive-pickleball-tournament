@@ -27,7 +27,12 @@ struct ContentView: View {
             }
             .navigationTitle(store.bracket?.title ?? "Pickleball")
             .navigationDestination(for: Match.self) { MatchScoreView(match: $0) }
-            .task { await store.refresh() }
+            .task {
+                while !Task.isCancelled {
+                    await store.refresh()
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                }
+            }
             .refreshable { await store.refresh() }
         }
     }

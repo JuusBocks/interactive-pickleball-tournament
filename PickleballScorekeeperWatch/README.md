@@ -13,10 +13,11 @@ This is the native SwiftUI source for the court-side scorekeeper. It uses the sa
 
 ## Behavior
 
-- `+` / `−` changes the selected team’s point total.
-- **Change serve** cycles server 1 → server 2 → other team’s server 1.
-- **Server 1/2 · Switch** explicitly corrects the server number.
+- Each team has side-by-side **−** and **+** score controls, so score changes are available without scrolling.
+- **Serve** cycles server 1 → server 2 → other team’s server 1.
+- **S1 / S2** explicitly corrects the server number.
 - **Undo** reverses the last score or serving change.
 - **Finish game** records the bracket winner after the score is final.
+- The bracket refreshes from the shared site every five seconds while the app is open, so website and Watch edits stay in sync.
 
 For the complication’s live number, the next deployment task is to add an authenticated lightweight “active match” endpoint and a WidgetKit push notification whenever a score changes. The app itself already refreshes from the shared website and is the reliable score-entry surface.
