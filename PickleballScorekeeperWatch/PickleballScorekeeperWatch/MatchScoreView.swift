@@ -11,75 +11,93 @@ struct MatchScoreView: View {
     var body: some View {
         let game = latest
 
-        VStack(spacing: 4) {
-            teamRow(name: game.playerA?.name ?? "Top team", score: game.score.scoreA, side: "a", enabled: game.isPlayable)
-            teamRow(name: game.playerB?.name ?? "Bottom team", score: game.score.scoreB, side: "b", enabled: game.isPlayable)
+        VStack(spacing: 7) {
+            HStack {
+                Text("MATCH " + String(game.index))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(game.score.servingLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
 
-            Text(game.score.servingLabel)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            teamCard(name: game.playerA?.name ?? "Top team", score: game.score.scoreA, side: "a", enabled: game.isPlayable)
+            teamCard(name: game.playerB?.name ?? "Bottom team", score: game.score.scoreB, side: "b", enabled: game.isPlayable)
 
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Button {
                     Task { await store.send(.advanceServe(matchID: game.id)) }
                 } label: {
-                    Label("Change serve", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Serve", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.small)
                 .disabled(!game.isPlayable || store.isSaving)
 
-                Button("Undo") {
+                Button("Undo", systemImage: "arrow.uturn.backward") {
                     Task { await store.send(.undo(matchID: game.id)) }
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(game.score.history.isEmpty || store.isSaving)
-
             }
 
             if game.isPlayable {
                 NavigationLink {
                     WinnerPicker(match: game)
                 } label: {
-                    Label("Finish", systemImage: "flag.checkered")
+                    Label("Finish match", systemImage: "flag.checkered")
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
             }
         }
-        .padding(.horizontal, 4)
-        .navigationTitle("Match " + String(game.index))
-        .navigationBarTitleDisplayMode(.inline)
+        .padding(.horizontal, 8)
+        .toolbar(.hidden, for: .navigationBar)
         .task { await store.refresh() }
     }
 
-    private func teamRow(name: String, score: Int, side: String, enabled: Bool) -> some View {
-        HStack(spacing: 4) {
+    private func teamCard(name: String, score: Int, side: String, enabled: Bool) -> some View {
+        let tint: Color = side == "a" ? .teal : .purple
+
+        return VStack(spacing: 2) {
             Text(name)
-                .font(.caption2)
+                .font(.caption.weight(.medium))
                 .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .minimumScaleFactor(0.65)
+                .frame(maxWidth: .infinity)
 
-            Button {
-                Task { await store.send(.adjust(matchID: latest.id, side: side, delta: -1)) }
-            } label: {
-                Image(systemName: "minus")
+            HStack(spacing: 10) {
+                Button {
+                    Task { await store.send(.adjust(matchID: latest.id, side: side, delta: -1)) }
+                } label: {
+                    Image(systemName: "minus")
+                        .font(.headline)
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(.bordered)
+                .disabled(!enabled || score == 0 || store.isSaving)
+
+                Text(String(score))
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .frame(minWidth: 34)
+
+                Button {
+                    Task { await store.send(.adjust(matchID: latest.id, side: side, delta: 1)) }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.headline)
+                        .frame(width: 38, height: 38)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(tint)
+                .disabled(!enabled || store.isSaving)
             }
-            .buttonStyle(.bordered)
-            .disabled(!enabled || score == 0 || store.isSaving)
-
-            Text(String(score))
-                .font(.title3.monospacedDigit())
-                .bold()
-                .frame(minWidth: 20)
-
-            Button {
-                Task { await store.send(.adjust(matchID: latest.id, side: side, delta: 1)) }
-            } label: {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(side == "a" ? .teal : .purple)
-            .disabled(!enabled || store.isSaving)
         }
+        .padding(6)
+        .background(tint.opacity(0.16), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
