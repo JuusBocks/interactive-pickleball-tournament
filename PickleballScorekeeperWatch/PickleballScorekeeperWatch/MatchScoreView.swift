@@ -23,35 +23,26 @@ struct MatchScoreView: View {
                 Button {
                     Task { await store.send(.advanceServe(matchID: game.id)) }
                 } label: {
-                    Label("Serve", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Change serve", systemImage: "arrow.triangle.2.circlepath")
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!game.isPlayable || store.isSaving)
 
-                Button {
-                    Task { await store.send(.serverNumber(matchID: game.id, number: game.score.serverNumber == 1 ? 2 : 1)) }
-                } label: {
-                    Label("S" + String(game.score.serverNumber), systemImage: "arrow.left.arrow.right")
-                }
-                .buttonStyle(.bordered)
-                .disabled(!game.isPlayable || store.isSaving)
-            }
-
-            HStack(spacing: 5) {
                 Button("Undo") {
                     Task { await store.send(.undo(matchID: game.id)) }
                 }
                 .buttonStyle(.bordered)
                 .disabled(game.score.history.isEmpty || store.isSaving)
 
-                if game.isPlayable {
-                    NavigationLink {
-                        WinnerPicker(match: game)
-                    } label: {
-                        Label("Finish", systemImage: "flag.checkered")
-                    }
-                    .buttonStyle(.bordered)
+            }
+
+            if game.isPlayable {
+                NavigationLink {
+                    WinnerPicker(match: game)
+                } label: {
+                    Label("Finish", systemImage: "flag.checkered")
                 }
+                .buttonStyle(.bordered)
             }
         }
         .padding(.horizontal, 4)
